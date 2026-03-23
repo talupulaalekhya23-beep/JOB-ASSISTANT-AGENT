@@ -1,0 +1,19 @@
+fastapi # Creates API endpoints for chatbot (upload/download)
+uvicorn # ASGI server to run FastAPI application
+python-multipart # Enables file uploads (resume upload support)
+python-dotenv  # Loads API keys securely from .env file
+
+langchain # Framework to build agents, tools, and AI workflows
+langchain-anthropic # LangChain integration for Anthropic Claude models
+anthropic # Official Anthropic SDK to access Claude LLM
+
+pypdf  # Extracts text from PDF resumes
+pandas # Converts job results into structured tables
+openpyxl # Creates and writes Excel (.xlsx) files for download
+
+faiss-cpu # Stores embeddings and performs fast similarity search between resumes
+sentence-transformers # Converts resume text into embeddings for semantic search
+
+requests  # Sends HTTP requests to Indeed/job websites
+beautifulsoup4 # Parses HTML job listings from web pages
+
