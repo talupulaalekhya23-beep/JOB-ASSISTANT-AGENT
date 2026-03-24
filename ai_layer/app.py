@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from typing import List, Dict
 from bs4 import BeautifulSoup
 from fastapi.responses import FileResponse
+import time
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.tools import tool
@@ -79,11 +80,11 @@ def search_jobs(query: str) -> List[Dict]:
     }
 
     try:
-        response = requests.get(url, headers=headers, params=params, timeout=10)
+        response = requests.get(url, headers=headers, params=params, timeout=30)
         if response.status_code != 200:
             return "JOB_SOURCE_ERROR"
 
-        data = response.json()
+        data = fetch_jobs(url, headers, params)
         jobs_list = []
 
         for job in data.get("data", [])[:5]:
@@ -103,20 +104,21 @@ def search_jobs(query: str) -> List[Dict]:
         print("API ERROR:", str(e))
         return "JOB_SOURCE_ERROR"
 
-@tool
-def save_excel(jobs: dict) -> str:
+@tool(args_schema=JobList)
+def save_excel(jobs: List[Dict]) -> str:
     """
     Save job search results into an Excel file.
-    Input format: {"jobs": [list of job dicts]}
     """
-    if not jobs or "jobs" not in jobs or not jobs["jobs"]:
+
+    if not jobs:
         return "No jobs to save."
 
     file_path = Path(__file__).resolve().parent / "jobs.xlsx"
-    df = pd.DataFrame(jobs["jobs"])
-    df.to_excel(file_path, index=False)
-    return f"Saved to {file_path}"
 
+    df = pd.DataFrame(jobs)
+    df.to_excel(file_path, index=False)
+
+    return f"Saved to {file_path}"
 # =====================================================
 # JOB QUERY DETECTOR
 # =====================================================
@@ -152,6 +154,27 @@ RULES:
 Never guess jobs yourself.
 """
 )
+def fetch_jobs(url, headers, params):
+    for attempt in range(3):
+        try:
+            response = requests.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.json()
+
+        except requests.exceptions.Timeout:
+            print(f"Retry {attempt+1} due to timeout...")
+            time.sleep(2)
+
+        except requests.exceptions.RequestException as e:
+            print("API ERROR:", e)
+            break
+
+    return {"data": []}
 
 # =====================================================
 # UPLOAD ENDPOINT
