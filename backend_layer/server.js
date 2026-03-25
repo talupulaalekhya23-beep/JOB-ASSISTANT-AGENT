@@ -9,45 +9,41 @@ import cors from "cors";
 const app = express();
 const PORT = 5000;
 
-// Configure multer for file uploads
+// ---------------- MULTER CONFIG ----------------
 const upload = multer({ dest: "uploads/" });
 
-// Middleware
+// ---------------- MIDDLEWARE ----------------
 app.use(cors());
-
 app.use(express.json());
 
-/* ---------------- HEALTH CHECK ---------------- */
+// ---------------- HEALTH CHECK ----------------
 app.get("/health", (req, res) => {
   res.json({ status: "Node.js server running" });
 });
 
-/* ---------------- CHAT ENDPOINT (NEW) ---------------- */
+// ---------------- CHAT ENDPOINT ----------------
 app.post("/chat", async (req, res) => {
   try {
     const { message } = req.body;
 
-    const response = await axios.post(
-      "http://localhost:8000/chat",
-      { message }
-    );
+    // Forward chat message to FastAPI
+    const response = await axios.post("http://localhost:8000/chat", { message });
 
+    // Return response + download_url (Node proxy)
     res.json({
-      response:
-        response.data.response ||
-        response.data.answer ||
-        response.data.message
+      response: response.data.response || response.data.answer || response.data.message,
+      download_url: "http://localhost:5000/download/jobs"
     });
 
   } catch (error) {
     console.error("Chat Error:", error.message);
-
     res.status(500).json({
       response: "AI server error"
     });
   }
 });
-/* ---------------- UPLOAD ENDPOINT ---------------- */
+
+// ---------------- UPLOAD ENDPOINT ----------------
 app.post("/upload", upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -55,6 +51,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     const form = new FormData();
     form.append("file", fs.createReadStream(req.file.path));
 
+    // Forward upload to FastAPI
     const response = await axios.post(
       "http://localhost:8000/upload/",
       form,
@@ -65,7 +62,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       }
     );
 
-    // Delete temp file
+    // Delete temporary upload
     fs.unlinkSync(req.file.path);
 
     res.json(response.data);
@@ -76,12 +73,34 @@ app.post("/upload", upload.single("file"), async (req, res) => {
   }
 });
 
-/* ---------------- ROOT ---------------- */
-app.get("/", (req, res) => {
-  res.send("Server working");
+// ---------------- DOWNLOAD ENDPOINT ----------------
+app.get("/download/jobs", async (req, res) => {
+  try {
+    // Proxy the Excel file from FastAPI
+    const response = await axios.get("http://localhost:8000/download/jobs", {
+      responseType: "stream"
+    });
+
+    res.setHeader("Content-Disposition", 'attachment; filename="job_results.xlsx"');
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+
+    response.data.pipe(res);
+
+  } catch (err) {
+    console.error("Download Error:", err.message);
+    res.status(500).send("Failed to download Excel file");
+  }
 });
 
-/* ---------------- START SERVER ---------------- */
+// ---------------- ROOT ----------------
+app.get("/", (req, res) => {
+  res.send("Node.js server working");
+});
+
+// ---------------- START SERVER ----------------
 app.listen(PORT, () => {
   console.log(`Node.js server running on http://localhost:${PORT}`);
 });
